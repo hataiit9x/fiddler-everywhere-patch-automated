@@ -349,7 +349,8 @@ jobs:
       - name: Extract Dmg 
         shell: bash
         run: |
-          hdiutil attach FiddlerEverywhereSetup.dmg
+          # Auto-accept EULA và mount DMG
+          yes | hdiutil attach FiddlerEverywhereSetup.dmg -nobrowse
           
           # Tìm volume được mount
           VOLUME_PATH=$(ls -d /Volumes/*Fiddler* 2>/dev/null | head -1)
