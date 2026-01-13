@@ -347,11 +347,21 @@ jobs:
           }
 
       - name: Extract Dmg 
+        shell: bash
         run: |
           hdiutil attach FiddlerEverywhereSetup.dmg
+          
+          # Tìm volume được mount
+          VOLUME_PATH=$(ls -d /Volumes/*Fiddler* 2>/dev/null | head -1)
+          echo "Found volume: $VOLUME_PATH"
+          
+          # List nội dung để debug
+          ls -la "$VOLUME_PATH"
+          
           mkdir -p fe_app
-          cp -R /Volumes/Fiddler*/* ./fe_app/
-          hdiutil detach /Volumes/Fiddler*
+          cp -R "$VOLUME_PATH"/* ./fe_app/ || cp -R "$VOLUME_PATH"/*.app ./fe_app/
+          
+          hdiutil detach "$VOLUME_PATH"
 
       - name: List fe_app
         run: Get-ChildItem -Recurse fe_app
