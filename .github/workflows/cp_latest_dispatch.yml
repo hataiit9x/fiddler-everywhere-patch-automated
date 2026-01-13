@@ -367,8 +367,8 @@ jobs:
           
           mkdir -p fe_app
           
-          # Chỉ copy file .app từ volume, không copy symlink hay thư mục khác
-          cp -R "$VOLUME_PATH"/*.app ./fe_app/
+          # Dùng ditto để copy .app mà không follow symlink
+          ditto "$VOLUME_PATH"/*.app ./fe_app/
           
           hdiutil detach "$VOLUME_PATH"
 
