@@ -317,6 +317,9 @@ jobs:
       - scrape_fe_version
 
     steps:
+      - name: Checkout (clean workspace)
+        uses: actions/checkout@v4
+          
       - name: Build URL & Download
         run: |
           # Retrieve the scraped version from the previous step
@@ -361,19 +364,28 @@ jobs:
           fi
           
           echo "Found volume: $VOLUME_PATH"
-          
-          # List nội dung để debug
           ls -la "$VOLUME_PATH"
           
           mkdir -p fe_app
           
-          # Dùng ditto để copy .app mà không follow symlink
-          ditto "$VOLUME_PATH"/*.app ./fe_app/
+          APP_FILE=$(ls -d "$VOLUME_PATH"/*.app 2>/dev/null | head -1)
+          echo "Found app: $APP_FILE"
+          
+          # Copy toàn bộ .app bundle, KHÔNG follow symlink (-P flag)
+          cp -RP "$APP_FILE" "./fe_app/"
           
           hdiutil detach "$VOLUME_PATH"
+          
+          # Check size
+          echo "Size of fe_app:"
+          du -sh fe_app
+          
+          # List top-level structure
+          echo "Structure:"
+          ls -la fe_app/
 
       - name: List fe_app
-        run: Get-ChildItem -Recurse fe_app
+        run: Get-ChildItem fe_app
         
       - name: Upload Fiddler Everywhere Extracted folder as an artifact
         uses: actions/upload-artifact@v4
