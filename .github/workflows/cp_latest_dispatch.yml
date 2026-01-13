@@ -366,7 +366,9 @@ jobs:
           ls -la "$VOLUME_PATH"
           
           mkdir -p fe_app
-          cp -R "$VOLUME_PATH"/* ./fe_app/ || cp -R "$VOLUME_PATH"/*.app ./fe_app/
+          
+          # Chỉ copy file .app từ volume, không copy symlink hay thư mục khác
+          cp -R "$VOLUME_PATH"/*.app ./fe_app/
           
           hdiutil detach "$VOLUME_PATH"
 
