@@ -349,11 +349,17 @@ jobs:
       - name: Extract Dmg 
         shell: bash
         run: |
-          # Auto-accept EULA và mount DMG
-          yes | hdiutil attach FiddlerEverywhereSetup.dmg -nobrowse
+          # Auto-accept EULA và mount DMG (ignore broken pipe error từ yes)
+          yes 2>/dev/null | hdiutil attach FiddlerEverywhereSetup.dmg -nobrowse || true
           
           # Tìm volume được mount
           VOLUME_PATH=$(ls -d /Volumes/*Fiddler* 2>/dev/null | head -1)
+          
+          if [ -z "$VOLUME_PATH" ]; then
+            echo "Error: Could not find mounted volume"
+            exit 1
+          fi
+          
           echo "Found volume: $VOLUME_PATH"
           
           # List nội dung để debug
