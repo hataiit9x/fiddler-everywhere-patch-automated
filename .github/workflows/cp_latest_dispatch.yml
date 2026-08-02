@@ -304,6 +304,12 @@ jobs:
             exit 1
           }
 
+      - name: Install Linux dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2 p7zip-full
+
       - name: Extract AppImage 
         run: |
           chmod +x ./FiddlerEverywhereSetup.AppImage
@@ -509,6 +515,18 @@ jobs:
       - name: Set user credentials
         run: |
           $source_json = "FE/resources/app/out/file/identity.getfiddler.com/oauth/token.json"
+
+          if (-not (Test-Path $source_json)) {
+            $source_json = Get-ChildItem -Path "FE" -Recurse -Filter "token.json" -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -like "*identity.getfiddler.com*oauth*" } |
+              Select-Object -First 1 -ExpandProperty FullName
+          }
+
+          if (-not $source_json -or -not (Test-Path $source_json)) {
+            Write-Host "token.json not found; skipping user credentials patch"
+            return
+          }
+
           $main_content = Get-Content -Path $source_json -Raw | ConvertFrom-Json
 
           $main_content.user_info.email = $env:PATCH_USER_EMAIL
@@ -518,6 +536,7 @@ jobs:
           $main_content.user_info.identities[0].providerName = $env:PATCH_USER_PROVIDER
 
           $main_content | ConvertTo-Json -Depth 5 | Set-Content -Path $source_json
+          Write-Host "User credentials patched in $source_json"
 
       - name: Patch main.js to main.original.js
         run: |
