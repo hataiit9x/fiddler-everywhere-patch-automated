@@ -478,7 +478,16 @@ jobs:
       - name: Copy Server Folder
         run: |
           $source_server_folder = "msojocs-patch/server/file"
-          $destination_server_folder = "FE/resources/app/out"
+          $main_js = Get-ChildItem -Path "FE" -Recurse -Filter "main.js" -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -like "*resources*app*out*" } |
+            Select-Object -First 1
+
+          if (-not $main_js) {
+            Write-Host "main.js not found; skipping server folder copy"
+            return
+          }
+
+          $destination_server_folder = $main_js.Directory.FullName
 
           if (Test-Path $source_server_folder) {
             Copy-Item -Path $source_server_folder -Destination $destination_server_folder -Recurse
@@ -490,7 +499,16 @@ jobs:
         if: startsWith(env.PATCH_LANGUAGE, 'Yes')
         run: |
           $translate_js = "msojocs-patch/server/translate.js"
-          $dest_translate = "FE/resources/app/out/translate.js"
+          $main_js = Get-ChildItem -Path "FE" -Recurse -Filter "main.js" -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -like "*resources*app*out*" } |
+            Select-Object -First 1
+
+          if (-not $main_js) {
+            Write-Host "main.js not found; skipping Chinese translation"
+            return
+          }
+
+          $dest_translate = Join-Path $main_js.Directory.FullName "translate.js"
 
           if (Test-Path $translate_js) {
             Copy-Item -Path $translate_js -Destination $dest_translate -Force
@@ -502,9 +520,9 @@ jobs:
       - name: Set patch server port (in main.js of server)
         run: |
           $source_index = "msojocs-patch/server/index.js"
-          $index_content = Get-Content -Path $source_index -Raw
 
           if (Test-Path $source_index) {
+            $index_content = Get-Content -Path $source_index -Raw
             $index_content = $index_content -replace 'const port = \d+;', "const port = $env:PATCH_SERVER_PORT;"
             Set-Content -Path $source_index -Value $index_content
             Write-Host "Server port set to $env:PATCH_SERVER_PORT"
@@ -540,20 +558,24 @@ jobs:
 
       - name: Patch main.js to main.original.js
         run: |
-          $source_main = "FE/resources/app/out/main.js"
-          $main_content = Get-Content -Path $source_main -Raw
-
-          $new_main = "FE/resources/app/out/main.original.js"
+          $main_file = Get-ChildItem -Path "FE" -Recurse -Filter "main.js" -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -like "*resources*app*out*" } |
+            Select-Object -First 1
 
           $source_index = "msojocs-patch/server/index.js"
-          $index_content = Get-Content -Path $source_index -Raw
           
-          if ((Test-Path $source_main) -and (Test-Path $source_index)) {
+          if ($main_file -and (Test-Path $source_index)) {
+            $source_main = $main_file.FullName
+            $new_main = Join-Path $main_file.Directory.FullName "main.original.js"
+            $main_content = Get-Content -Path $source_main -Raw
+            $index_content = Get-Content -Path $source_index -Raw
+
             Copy-Item -Path $source_main -Destination $new_main
 
             $appended_content = $index_content + $main_content
 
             Set-Content -Path $source_main -Value $appended_content
+            Write-Host "Patched main.js at $source_main"
           } else {
             Write-Host "Source main.js or index.js (from server) not found"
           }
