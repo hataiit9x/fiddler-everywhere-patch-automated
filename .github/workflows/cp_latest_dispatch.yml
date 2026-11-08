@@ -185,24 +185,60 @@ jobs:
         run: echo "Yui_RELEASE=continuous" >> $env:GITHUB_ENV
         
       - name: Download Yui Patch
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           Write-Host "EXTENSION = $env:LIBRARY_EXTENSION"
           Write-Host "ARCH CODE =  $env:ARCH_CODE"
-          try {
-            # Build the download URLs
-            $YuiFiddlerUrl = "https://github.com/project-yui/Yui-patch/releases/download/$env:Yui_RELEASE/$env:YUI_NAME-$env:Yui_FIDDLER_NAME_NO_EXTENSION-$env:ARCH_CODE-$env:Yui_RELEASE.$env:LIBRARY_EXTENSION"
-            
-            # Print the URLs to ensure they're correct
-            Write-Host "Downloading files from $env:Yui_RELEASE"
-            Write-Host "Yui Fiddler URL: $YuiFiddlerUrl"
 
-            # Download the files
-            Invoke-WebRequest -Uri $YuiFiddlerUrl -OutFile "Yui\$env:Yui_FIDDLER_NAME"
+          # The releases/download edge intermittently returns 504, so resolve the
+          # asset id through the API and download from the API asset endpoint instead
+          $YuiAssetName = "$env:YUI_NAME-$env:Yui_FIDDLER_NAME_NO_EXTENSION-$env:ARCH_CODE-$env:Yui_RELEASE.$env:LIBRARY_EXTENSION"
+          $YuiApiUrl = "https://api.github.com/repos/project-yui/Yui-patch/releases/tags/$env:Yui_RELEASE"
+          $YuiApiHeaders = @{
+            "Accept"        = "application/vnd.github+json"
+            "Authorization" = "Bearer $env:GH_TOKEN"
           }
-          catch {
-            Write-Error "Failed to download the patch files. Error details: $_"
+
+          $AssetId = $null
+          for ($Attempt = 1; $Attempt -le 5 -and -not $AssetId; $Attempt++) {
+            try {
+              Write-Host "Resolving asset '$YuiAssetName' (attempt $Attempt/5)"
+              $Release = Invoke-RestMethod -Uri $YuiApiUrl -Headers $YuiApiHeaders -TimeoutSec 30
+              $AssetId = ($Release.assets | Where-Object { $_.name -eq $YuiAssetName } | Select-Object -First 1).id
+            }
+            catch {
+              Write-Host "Release lookup failed: $_"
+            }
+            if (-not $AssetId) { Start-Sleep -Seconds (5 * $Attempt) }
+          }
+
+          if (-not $AssetId) {
+            Write-Error "Could not resolve asset '$YuiAssetName' in the '$env:Yui_RELEASE' release via the GitHub API."
             exit 1
           }
+
+          $YuiFiddlerUrl = "https://api.github.com/repos/project-yui/Yui-patch/releases/assets/$AssetId"
+          Write-Host "Yui Fiddler URL: $YuiFiddlerUrl"
+
+          for ($Attempt = 1; $Attempt -le 5; $Attempt++) {
+            try {
+              Write-Host "Downloading files from $env:Yui_RELEASE (attempt $Attempt/5)"
+              Invoke-WebRequest -Uri $YuiFiddlerUrl -Headers @{
+                "Accept"        = "application/octet-stream"
+                "Authorization" = "Bearer $env:GH_TOKEN"
+              } -OutFile "Yui\$env:Yui_FIDDLER_NAME" -TimeoutSec 300
+              Write-Host "Download completed successfully."
+              exit 0
+            }
+            catch {
+              Write-Host "Download failed: $_"
+              Start-Sleep -Seconds (5 * $Attempt)
+            }
+          }
+
+          Write-Error "Failed to download the patch files after 5 attempts. Yui Fiddler URL: $YuiFiddlerUrl"
+          exit 1
       
       - name: Upload Yui folder as an artifact
         uses: actions/upload-artifact@v7
